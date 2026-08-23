@@ -1,3 +1,7 @@
+import streamlit as st
+
+# --- 0. CONFIGURAZIONE PAGINA (DEVE ESSERE LA PRIMA COSA IN ASSOLUTO) ---
+st.set_page_config(page_title="Travel AI Assistant", page_icon="✈️", layout="wide")
 
 # --- 1. CLASSE DI STATO E CONTROLLER (Logica, Matrice e Incrocio Voli) ---
 class TravelAgentState:
@@ -103,9 +107,7 @@ class TravelAgentState:
             "transfer_info_link": "https://www.rome2rio.com/it/"
         }
 
-# --- 2. CONFIGURAZIONE INTERFACCIA GRAFICA (STREAMLIT) ---
-st.set_page_config(page_title="Travel AI Assistant", page_icon="✈️", layout="wide")
-
+# --- 2. INTERFACCIA GRAFICA (STREAMLIT) ---
 with st.sidebar:
     st.image("https://img.icons8.com/color/96/airport.png", width=80)
     st.markdown("### 🗺️ Il tuo Viaggio")
@@ -216,9 +218,3 @@ elif state.step == 4:
     if st.button("🔄 Pianifica un nuovo viaggio", use_container_width=True):
         st.session_state.agent_state = TravelAgentState()
         st.rerun()
-
-
-
-
-
-
