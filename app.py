@@ -7,7 +7,6 @@ from google import genai
 st.set_page_config(page_title="Travel AI Assistant Pro", page_icon="✈️", layout="wide")
 
 # --- INIZIALIZZAZIONE GEMINI CLIENT ---
-# Legge la chiave API dalle variabili d'ambiente o dai secrets di Streamlit
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key and "GEMINI_API_KEY" in st.secrets:
     api_key = st.secrets["GEMINI_API_KEY"]
@@ -144,7 +143,6 @@ if state.step == 1:
     with col1:
         st.subheader("1️⃣ Raccolta Preferenze con IA")
         
-        # Se la chiave è configurata, offriamo il prompt libero in linguaggio naturale
         if client:
             st.info("✨ **Modalità Smart AI attiva:** scrivi liberamente cosa desideri fare.")
             with st.form("ai_form"):
@@ -167,5 +165,4 @@ if state.step == 1:
                                 model='gemini-2.5-flash',
                                 contents=prompt_text
                             )
-                            # Pulizia della risposta per estrarre il JSON
                             clean_text = response.text.replace("```json", "").replace("
