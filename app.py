@@ -165,4 +165,105 @@ if state.step == 1:
                                 model='gemini-2.5-flash',
                                 contents=prompt_text
                             )
-                            clean_text = response.text.replace("```json", "").replace("
+                            clean_text = response.text.replace("```json", "").replace("```", "").strip()
+                            data = json.loads(clean_text)
+                            
+                            state.set_user_input(
+                                destination=data.get("destination", "Tokyo"),
+                                dates=data.get("dates", "Prossimi mesi"),
+                                origin_city=data.get("origin_city", "Milano"),
+                                budget_max=data.get("budget_max", "1000€")
+                            )
+                            st.rerun()
+                        except Exception as e:
+                            st.warning(f"Errore nell'interpretazione IA ({e}). Compila i campi standard sotto:")
+        
+        with st.form("step1_form"):
+            st.markdown("---")
+            destination = st.text_input("Destinazione", placeholder="Es. Tokyo, Parigi, Lamezia Terme")
+            dates = st.text_input("Periodo / Date", placeholder="Es. Settembre, 10-17 Ottobre")
+            origin_city = st.text_input("Città di Partenza", placeholder="Es. Milano, Roma, Cosenza")
+            
+            with st.expander("⚙️ Filtri Avanzati (Budget e Compagnie)"):
+                budget_max = st.text_input("Budget massimo", placeholder="Es. 1200€")
+                preferred_airlines = st.text_input("Compagnie preferite (separate da virgola)", placeholder="Es. Ryanair, ITA, EasyJet")
+                max_stops = st.selectbox("Numero massimo di scali", [0, 1, 2], index=1)
+
+            submitted = st.form_submit_button("🚀 Avvia Analisi Tradizionale", use_container_width=True)
+            if submitted and destination and dates and origin_city:
+                airlines_list = [a.strip() for a in preferred_airlines.split(",")] if preferred_airlines else []
+                state.set_user_input(destination, dates, origin_city, budget_max, airlines_list, max_stops)
+                st.rerun()
+                
+    with col2:
+        st.markdown("### Come funziona?")
+        st.info(
+            "1. **Gemini IA:** Legge la tua frase ed estrae i dettagli automaticamente.\n"
+            "2. **Mappatura:** Individuazione degli aeroporti vicini.\n"
+            "3. **Logistica:** Controllo transfer e orari.\n"
+            "4. **Matrice & Checkout:** Incrocio tariffe e link pronti."
+        )
+
+# --- STEP 2 ---
+elif state.step == 2:
+    st.subheader("2️⃣ Aeroporti Mappati e Selezione Volo di Prova")
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Città di Partenza", state.origin_city or "-")
+    col2.metric("Destinazione", state.destination or "-")
+    col3.metric("Scali Massimi", f"{state.max_stops} scali" if state.max_stops is not None else "Non specificato")
+
+    st.success(f"📍 **Aeroporti individuati nel raggio utile:** {', '.join(state.airports)}")
+    
+    st.markdown("### Seleziona una tipologia di volo per testare i collegamenti:")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("✈️ Simula Volo Diurno (Arrivo 15:30)", use_container_width=True):
+            flight_test = {"details": {"airline": "Ryanair", "airport": state.airports[0]}, "arrival_time": "15:30"}
+            state.add_flight_and_check_transfer(flight_test["details"], flight_test["arrival_time"])
+            st.rerun()
+    with c2:
+        if st.button("🌙 Simula Volo Notturno (Arrivo 23:45)", use_container_width=True):
+            flight_test = {"details": {"airline": "ITA Airways", "airport": state.airports[0]}, "arrival_time": "23:45"}
+            state.add_flight_and_check_transfer(flight_test["details"], flight_test["arrival_time"])
+            st.rerun()
+
+# --- STEP 3 ---
+elif state.step == 3:
+    st.subheader("3️⃣ Verifica Logistica di Terra e Transfer")
+    st.markdown(f"> **Esito Controllo Transfer:**\n> {state.transfer_info}")
+    
+    st.markdown("### Scegli il tuo stile per l'itinerario personalizzato:")
+    travel_style = st.selectbox("Stile di viaggio:", ["Cultura", "Avventura", "Relax", "Enogastronomia"])
+    
+    if st.button("✨ Elabora Matrice Voli e Genera Itinerario", use_container_width=True):
+        state.generate_itinerary(travel_style)
+        st.rerun()
+
+# --- STEP 4 ---
+elif state.step == 4:
+    st.subheader("🎉 Il tuo piano di viaggio è pronto!")
+    
+    st.success(state.flight_recommendation)
+    
+    tab1, tab2 = st.tabs(["🧭 Itinerario Giornaliero", "🔗 Link di Checkout & Prenotazione"])
+    
+    with tab1:
+        st.markdown(f"### Itinerario in stile: *{state.travel_style}*")
+        st.info(state.itinerary)
+        
+    with tab2:
+        st.markdown("### Link diretti preimpostati")
+        st.markdown("Clicca sui pulsanti sottostanti per aprire i portali con i parametri già impostati:")
+        
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.link_button("🌐 Cerca Voli su Google Flights", state.checkout_links['google_flights'], use_container_width=True)
+        with col_b:
+            st.link_button("🚆 Verifica Transfer su Rome2Rio", state.checkout_links['transfer_info_link'], use_container_width=True)
+            
+    st.divider()
+    if st.button("🔄 Pianifica un nuovo viaggio", use_container_width=True):
+        st.session_state.agent_state = TravelAgentState()
+        st.rerun()
+
