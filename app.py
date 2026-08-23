@@ -1,9 +1,9 @@
 import streamlit as st
 import os
 import json
-from google import genai
+import google.generativeai as genai
 
-# --- 0. CONFIGURAZIONE PAGINA (DEVE ESSERE LA PRIMA COSA IN ASSOLUTO) ---
+# --- 0. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Travel AI Assistant Pro", page_icon="✈️", layout="wide")
 
 # --- INIZIALIZZAZIONE GEMINI CLIENT ---
@@ -11,7 +11,12 @@ api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key and "GEMINI_API_KEY" in st.secrets:
     api_key = st.secrets["GEMINI_API_KEY"]
 
-client = genai.Client(api_key=api_key) if api_key else None
+if api_key:
+    genai.configure(api_key=api_key)
+    # Usiamo il modello standard stabile
+    model = genai.GenerativeModel('gemini-1.5-flash')
+else:
+    model = None
 
 # --- 1. CLASSE DI STATO E CONTROLLER ---
 class TravelAgentState:
@@ -143,7 +148,7 @@ if state.step == 1:
     with col1:
         st.subheader("1️⃣ Raccolta Preferenze con IA")
         
-        if client:
+        if model:
             st.info("✨ **Modalità Smart AI attiva:** scrivi liberamente cosa desideri fare.")
             with st.form("ai_form"):
                 user_prompt = st.text_area("Raccontami il tuo viaggio ideale:", placeholder="Es. Vorrei andare a Tokyo a novembre partendo da Milano con un budget di 1500 euro.")
@@ -161,10 +166,7 @@ if state.step == 1:
                             
                             Richiesta: "{user_prompt}"
                             """
-                            response = client.models.generate_content(
-                                model='gemini-2.5-flash',
-                                contents=prompt_text
-                            )
+                            response = model.generate_content(prompt_text)
                             clean_text = response.text.replace("```json", "").replace("```", "").strip()
                             data = json.loads(clean_text)
                             
@@ -266,4 +268,3 @@ elif state.step == 4:
     if st.button("🔄 Pianifica un nuovo viaggio", use_container_width=True):
         st.session_state.agent_state = TravelAgentState()
         st.rerun()
-
