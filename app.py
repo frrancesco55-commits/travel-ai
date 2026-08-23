@@ -33,8 +33,8 @@ class TravelAgentState:
         self.itinerary = None
         self.flight_recommendation = None
         self.packing_list = None
-        self.weather_tips = None
         self.checkout_links = {}
+        self.chat_history = []  # Storico della chat interattiva
         self.step = 1
 
     def set_user_input(self, destination, dates, origin_city, budget_max=None, preferred_airlines=None, max_stops=None):
@@ -144,7 +144,7 @@ with st.sidebar:
             st.write(f"🛫 **Partenza:** {st.session_state.agent_state.origin_city}")
 
 st.title("✈️ Travel AI Assistant Pro")
-st.markdown("##### Il tuo assistente di viaggio intelligente, completo di budget, valigia e itinerari.")
+st.markdown("##### Il tuo assistente di viaggio intelligente con chat esperta integrata.")
 st.divider()
 
 if "agent_state" not in st.session_state:
@@ -176,135 +176,4 @@ if state.step == 1:
                             Richiesta: "{user_prompt}"
                             """
                             response = model.generate_content(prompt_text)
-                            clean_text = response.text.replace("```json", "").replace("```", "").strip()
-                            data = json.loads(clean_text)
-                            
-                            state.set_user_input(
-                                destination=data.get("destination", "Tokyo"),
-                                dates=data.get("dates", "Prossimi mesi"),
-                                origin_city=data.get("origin_city", "Milano"),
-                                budget_max=data.get("budget_max", "1000€")
-                            )
-                            st.rerun()
-                        except Exception as e:
-                            st.warning(f"Errore IA ({e}). Compila i campi sotto:")
-        
-        with st.form("step1_form"):
-            st.markdown("---")
-            destination = st.text_input("Destinazione", placeholder="Es. Tokyo, Parigi, Lamezia Terme")
-            dates = st.text_input("Periodo / Date", placeholder="Es. Settembre, 10-17 Ottobre")
-            origin_city = st.text_input("Città di Partenza", placeholder="Es. Milano, Roma, Cosenza")
-            
-            with st.expander("⚙️ Filtri Avanzati (Budget e Compagnie)"):
-                budget_max = st.text_input("Budget massimo", placeholder="Es. 1200€")
-                preferred_airlines = st.text_input("Compagnie preferite (separate da virgola)", placeholder="Es. Ryanair, ITA")
-                max_stops = st.selectbox("Numero massimo di scali", [0, 1, 2], index=1)
-
-            submitted = st.form_submit_button("🚀 Avvia Analisi Tradizionale", use_container_width=True)
-            if submitted and destination and dates and origin_city:
-                airlines_list = [a.strip() for a in preferred_airlines.split(",")] if preferred_airlines else []
-                state.set_user_input(destination, dates, origin_city, budget_max, airlines_list, max_stops)
-                st.rerun()
-                
-    with col2:
-        st.markdown("### Come funziona?")
-        st.info(
-            "1. **Gemini IA:** Estrae i dati ed elabora il piano.\n"
-            "2. **Logistica:** Aeroporti e transfer.\n"
-            "3. **Budget & Valigia:** Calcoli e liste intelligenti.\n"
-            "4. **Checkout:** Link pronti per prenotare."
-        )
-
-# --- STEP 2 ---
-elif state.step == 2:
-    st.subheader("2️⃣ Aeroporti Mappati e Selezione Volo")
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Città di Partenza", state.origin_city or "-")
-    col2.metric("Destinazione", state.destination or "-")
-    col3.metric("Scali Massimi", f"{state.max_stops} scali" if state.max_stops is not None else "Non specificato")
-
-    st.success(f"📍 **Aeroporti individuati:** {', '.join(state.airports)}")
-    
-    st.markdown("### Seleziona una tipologia di volo per testare i collegamenti:")
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("✈️ Simula Volo Diurno (Arrivo 15:30)", use_container_width=True):
-            flight_test = {"details": {"airline": "Compagnia Principale", "airport": state.airports[0]}, "arrival_time": "15:30"}
-            state.add_flight_and_check_transfer(flight_test["details"], flight_test["arrival_time"])
-            st.rerun()
-    with c2:
-        if st.button("🌙 Simula Volo Notturno (Arrivo 23:45)", use_container_width=True):
-            flight_test = {"details": {"airline": "Compagnia Notturna", "airport": state.airports[0]}, "arrival_time": "23:45"}
-            state.add_flight_and_check_transfer(flight_test["details"], flight_test["arrival_time"])
-            st.rerun()
-
-# --- STEP 3 ---
-elif state.step == 3:
-    st.subheader("3️⃣ Verifica Logistica di Terra e Transfer")
-    st.markdown(f"> **Esito Controllo Transfer:**\n> {state.transfer_info}")
-    
-    st.markdown("### Scegli il tuo stile di viaggio:")
-    travel_style = st.selectbox("Stile:", ["Cultura", "Avventura", "Relax", "Enogastronomia", "Lusso a basso costo"])
-    
-    if st.button("✨ Genera Piano Completo con Gemini (Voli, Itinerario & Valigia)", use_container_width=True):
-        with st.spinner("L'intelligenza artificiale sta costruendo il tuo assistente di viaggio definitivo..."):
-            state.generate_real_ai_content(travel_style)
-            st.rerun()
-
-# --- STEP 4 ---
-elif state.step == 4:
-    st.subheader("🎉 Il tuo piano di viaggio definitivo è pronto!")
-    
-    st.success(state.flight_recommendation)
-    
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "🧭 Itinerario", 
-        "🧳 Valigia & Meteo", 
-        "💰 Calcolatore Budget", 
-        "🔗 Link Prenotazione"
-    ])
-    
-    with tab1:
-        st.markdown(f"### Itinerario su misura ({state.travel_style})")
-        st.markdown(state.itinerary)
-        
-    with tab2:
-        st.markdown("### 🌤️ Previsioni Meteo e 🧳 Valigia Intelligente")
-        st.markdown(state.packing_list)
-        
-    with tab3:
-        st.markdown("### 💶 Calcolatore Interattivo delle Spese")
-        st.write("Inserisci i costi stimati per capire se rientri nel budget:")
-        
-        c_bud1, c_bud2 = st.columns(2)
-        with c_bud1:
-            cost_flight = st.number_input("Costo Voli (€)", min_value=0.0, value=150.0, step=10.0)
-            cost_hotel = st.number_input("Costo Hotel / Alloggio (€)", min_value=0.0, value=300.0, step=20.0)
-        with c_bud2:
-            cost_food = st.number_input("Cibo e Ristoranti (€)", min_value=0.0, value=150.0, step=10.0)
-            cost_extras = st.number_input("Attività, Transfer e Extra (€)", min_value=0.0, value=100.0, step=10.0)
-            
-        total_spent = cost_flight + cost_hotel + cost_food + cost_extras
-        st.divider()
-        st.metric(label="Spesa Totale Stimata", value=f"{total_spent} €")
-        
-        if state.budget_max:
-            st.info(f"💡 Il tuo budget massimo desiderato era: **{state.budget_max}**")
-
-    with tab4:
-        st.markdown("### Link diretti di prenotazione")
-        st.markdown("Usa i link rapidi per bloccare le tariffe migliori sui portali ufficiali:")
-        
-        col_a, col_b, col_c = st.columns(3)
-        with col_a:
-            st.link_button("🌐 Cerca Voli (Google Flights)", state.checkout_links['google_flights'], use_container_width=True)
-        with col_b:
-            st.link_button("🏨 Cerca Hotel (Booking)", state.checkout_links['booking_hotel'], use_container_width=True)
-        with col_c:
-            st.link_button("🚆 Verifica Transfer (Rome2Rio)", state.checkout_links['transfer_info_link'], use_container_width=True)
-            
-    st.divider()
-    if st.button("🔄 Pianifica un nuovo viaggio", use_container_width=True):
-        st.session_state.agent_state = TravelAgentState()
-        st.rerun()
+                            clean_text = response.text.replace("```json", "").replace("
