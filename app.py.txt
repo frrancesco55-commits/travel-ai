@@ -1,4 +1,3 @@
-Import streamlit as st
 
 # --- 1. CLASSE DI STATO E CONTROLLER (Logica, Matrice e Incrocio Voli) ---
 class TravelAgentState:
@@ -14,7 +13,7 @@ class TravelAgentState:
         self.transfer_info = None
         self.travel_style = None
         self.itinerary = None
-        self.flight_recommendation = None  # Matrice incrociata e consiglio migliore
+        self.flight_recommendation = None
         self.checkout_links = {}
         self.step = 1
 
@@ -34,7 +33,8 @@ class TravelAgentState:
             "roma": ["Fiumicino (FCO)", "Ciampino (CIA)"],
             "torino": ["Torino Caselle (TRN)"],
             "bologna": ["Bologna Guglielmo Marconi (BLQ)"],
-            "trento": ["Verona Villafranca (VRN)", "Bergamo Orio al Serio (BGY)"]
+            "trento": ["Verona Villafranca (VRN)", "Bergamo Orio al Serio (BGY)"],
+            "cosenza": ["Lamezia Terme (SUF)"]
         }
         city_key = self.origin_city.strip().lower()
         self.airports = airport_database.get(city_key, [f"Aeroporto di {self.origin_city}"])
@@ -47,9 +47,10 @@ class TravelAgentState:
             "Malpensa (MXP)": "Malpensa Express (Treno fino a Milano Centrale) o Bus Navetta.",
             "Linate (LIN)": "Metro M4 (Linea Blu) o Taxi.",
             "Bergamo Orio al Serio (BGY)": "Autobus navetta (Orio Shuttle) verso Milano Centrale.",
-            "Verona Villafranca (VRN)": "Bus navetta per la stazione di Verona e treno."
+            "Verona Villafranca (VRN)": "Bus navetta per la stazione di Verona e treno.",
+            "Lamezia Terme (SUF)": "Servizio navetta o treno regionale per Cosenza."
         }
-        airport_used = flight_details.get("airport", "Malpensa (MXP)")
+        airport_used = flight_details.get("airport", self.airports[0] if self.airports else "Aeroporto principale")
         base_transfer = transfers.get(airport_used, "Servizio bus o taxi locale.")
         
         if hour >= 23 or hour < 5:
@@ -69,12 +70,10 @@ class TravelAgentState:
         else:
             self.itinerary = f"Giorno 1-3: Tour esplorativo a {self.destination} incentrato su {travel_style}."
         
-        # Esegue l'incrocio delle tabelle (date, orari, prezzi)[span_1](start_span)[span_1](end_span)
         self.process_flight_matrix_and_recommendation()
         self.step = 4
 
     def process_flight_matrix_and_recommendation(self):
-        """Incrocia le tabelle di date, orari e prezzi per trovare la soluzione migliore[span_2](start_span)[span_2](end_span)."""
         chosen_airline = self.preferred_airlines[0] if self.preferred_airlines else "Ryanair"
         
         best_option = {
@@ -88,10 +87,10 @@ class TravelAgentState:
         self.flight_recommendation = (
             f"🎯 **Analisi Matrice Voli & Tariffe completata:**\n\n"
             f"- **Compagnia consigliata:** {best_option['airline']}\n"
-            f"- **Periodo ottimale trovato:** Dal {best_option['departure_dates']}[span_3](start_span)[span_3](end_span)\n"
-            f"- **Orari:** {best_option['departure_time']}[span_4](start_span)[span_4](end_span)\n"
-            f"- **Prezzo stimato:** {best_option['price']}[span_5](start_span)[span_5](end_span)\n\n"
-            f"💡 *Perché te lo consiglio:* {best_option['reason']}[span_6](start_span)[span_6](end_span)"
+            f"- **Periodo ottimale trovato:** Dal {best_option['departure_dates']}\n"
+            f"- **Orari:** {best_option['departure_time']}\n"
+            f"- **Prezzo stimato:** {best_option['price']}\n\n"
+            f"💡 *Perché te lo consiglio:* {best_option['reason']}"
         )
         
         self.generate_checkout_links()
@@ -134,7 +133,7 @@ if state.step == 1:
         with st.form("step1_form"):
             destination = st.text_input("Destinazione", placeholder="Es. Tokyo, Parigi, Lamezia Terme")
             dates = st.text_input("Periodo / Date", placeholder="Es. Settembre, 10-17 Ottobre")
-            origin_city = st.text_input("Città di Partenza", placeholder="Es. Milano, Roma, Trento")
+            origin_city = st.text_input("Città di Partenza", placeholder="Es. Milano, Roma, Cosenza")
             
             with st.expander("⚙️ Filtri Avanzati (Budget e Compagnie)"):
                 budget_max = st.text_input("Budget massimo", placeholder="Es. 1200€")
@@ -151,7 +150,7 @@ if state.step == 1:
         st.info(
             "1. **Mappatura:** Individuazione degli aeroporti.\n"
             "2. **Logistica:** Controllo transfer e orari.\n"
-            "3. **Matrice:** Incrocio date, orari e prezzi tra i vettori[span_7](start_span)[span_7](end_span).\n"
+            "3. **Matrice:** Incrocio date, orari e prezzi tra i vettori.\n"
             "4. **Checkout:** Link pronti per l'acquisto."
         )
 
@@ -195,7 +194,6 @@ elif state.step == 3:
 elif state.step == 4:
     st.subheader("🎉 Il tuo piano di viaggio è pronto!")
     
-    # Mostra il consiglio della matrice incrociata dei voli
     st.success(state.flight_recommendation)
     
     tab1, tab2 = st.tabs(["🧭 Itinerario Giornaliero", "🔗 Link di Checkout & Prenotazione"])
@@ -218,6 +216,8 @@ elif state.step == 4:
     if st.button("🔄 Pianifica un nuovo viaggio", use_container_width=True):
         st.session_state.agent_state = TravelAgentState()
         st.rerun()
+
+
 
 
 
