@@ -1,7 +1,7 @@
 import streamlit as st
 
 # --- 0. CONFIGURAZIONE PAGINA (DEVE ESSERE LA PRIMA COSA IN ASSOLUTO) ---
-st.set_page_config(page_title="Travel AI Assistant", page_icon="✈️", layout="wide")
+st.set_page_config(page_title="Travel AI Assistant Pro", page_icon="✈️", layout="wide")
 
 # --- 1. CLASSE DI STATO E CONTROLLER (Logica, Matrice e Incrocio Voli) ---
 class TravelAgentState:
@@ -85,7 +85,7 @@ class TravelAgentState:
             "departure_dates": "13 - 18 Settembre",
             "departure_time": "08:30 (Andata) / 19:45 (Ritorno)",
             "price": "94€",
-            "reason": "Ottimo compromesso tra orari comodi diurni e la tariffa più bassa rilevata tra i diversi vettori."
+            "reason": "Ottimo compromesso tra orari comodi diurni e la tariffa più bassa rilevata."
         }
         
         self.flight_recommendation = (
@@ -218,3 +218,5 @@ elif state.step == 4:
     if st.button("🔄 Pianifica un nuovo viaggio", use_container_width=True):
         st.session_state.agent_state = TravelAgentState()
         st.rerun()
+
+        
