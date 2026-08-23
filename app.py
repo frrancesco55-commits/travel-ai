@@ -1,9 +1,20 @@
 import streamlit as st
+import os
+import json
+from google import genai
 
 # --- 0. CONFIGURAZIONE PAGINA (DEVE ESSERE LA PRIMA COSA IN ASSOLUTO) ---
 st.set_page_config(page_title="Travel AI Assistant Pro", page_icon="✈️", layout="wide")
 
-# --- 1. CLASSE DI STATO E CONTROLLER (Logica, Matrice e Incrocio Voli) ---
+# --- INIZIALIZZAZIONE GEMINI CLIENT ---
+# Legge la chiave API dalle variabili d'ambiente o dai secrets di Streamlit
+api_key = os.environ.get("GEMINI_API_KEY")
+if not api_key and "GEMINI_API_KEY" in st.secrets:
+    api_key = st.secrets["GEMINI_API_KEY"]
+
+client = genai.Client(api_key=api_key) if api_key else None
+
+# --- 1. CLASSE DI STATO E CONTROLLER ---
 class TravelAgentState:
     def __init__(self):
         self.destination = None
@@ -40,7 +51,7 @@ class TravelAgentState:
             "trento": ["Verona Villafranca (VRN)", "Bergamo Orio al Serio (BGY)"],
             "cosenza": ["Lamezia Terme (SUF)"]
         }
-        city_key = self.origin_city.strip().lower()
+        city_key = self.origin_city.strip().lower() if self.origin_city else ""
         self.airports = airport_database.get(city_key, [f"Aeroporto di {self.origin_city}"])
 
     def add_flight_and_check_transfer(self, flight_details, arrival_time):
@@ -66,7 +77,7 @@ class TravelAgentState:
 
     def generate_itinerary(self, travel_style):
         self.travel_style = travel_style
-        if "tokyo" in self.destination.lower():
+        if self.destination and "tokyo" in self.destination.lower():
             if travel_style.lower() == "cultura":
                 self.itinerary = "Giorno 1: Tempio Senso-ji e Asakusa.\nGiorno 2: Santuario Meiji e quartiere Shibuya.\nGiorno 3: Akihabara e musei d'arte moderna."
             else:
@@ -100,8 +111,8 @@ class TravelAgentState:
         self.generate_checkout_links()
 
     def generate_checkout_links(self):
-        dest_query = self.destination.replace(" ", "+")
-        origin_query = self.origin_city.replace(" ", "+")
+        dest_query = (self.destination or "").replace(" ", "+")
+        origin_query = (self.origin_city or "").replace(" ", "+")
         self.checkout_links = {
             "google_flights": f"https://www.google.com/travel/flights?q=Flights+from+{origin_query}+to+{dest_query}",
             "transfer_info_link": "https://www.rome2rio.com/it/"
@@ -119,7 +130,7 @@ with st.sidebar:
             st.write(f"🛫 **Partenza:** {st.session_state.agent_state.origin_city}")
 
 st.title("✈️ Travel AI Assistant Pro")
-st.markdown("##### Il tuo agente di viaggio completo: ricerca voli, matrici incrociate, logistica di terra e itinerari su misura.")
+st.markdown("##### Il tuo agente di viaggio completo con intelligenza artificiale Gemini integrata.")
 st.divider()
 
 if "agent_state" not in st.session_state:
@@ -131,92 +142,30 @@ state = st.session_state.agent_state
 if state.step == 1:
     col1, col2 = st.columns([2, 1])
     with col1:
-        st.subheader("1️⃣ Raccolta Preferenze e Parametri")
-        with st.form("step1_form"):
-            destination = st.text_input("Destinazione", placeholder="Es. Tokyo, Parigi, Lamezia Terme")
-            dates = st.text_input("Periodo / Date", placeholder="Es. Settembre, 10-17 Ottobre")
-            origin_city = st.text_input("Città di Partenza", placeholder="Es. Milano, Roma, Cosenza")
-            
-            with st.expander("⚙️ Filtri Avanzati (Budget e Compagnie)"):
-                budget_max = st.text_input("Budget massimo", placeholder="Es. 1200€")
-                preferred_airlines = st.text_input("Compagnie preferite (separate da virgola)", placeholder="Es. Ryanair, ITA, EasyJet")
-                max_stops = st.selectbox("Numero massimo di scali", [0, 1, 2], index=1)
-
-            submitted = st.form_submit_button("🚀 Avvia Analisi e Mappatura", use_container_width=True)
-            if submitted and destination and dates and origin_city:
-                airlines_list = [a.strip() for a in preferred_airlines.split(",")] if preferred_airlines else []
-                state.set_user_input(destination, dates, origin_city, budget_max, airlines_list, max_stops)
-                st.rerun()
-    with col2:
-        st.markdown("### Come funziona?")
-        st.info(
-            "1. **Mappatura:** Individuazione degli aeroporti.\n"
-            "2. **Logistica:** Controllo transfer e orari.\n"
-            "3. **Matrice:** Incrocio date, orari e prezzi tra i vettori.\n"
-            "4. **Checkout:** Link pronti per l'acquisto."
-        )
-
-# --- STEP 2 ---
-elif state.step == 2:
-    st.subheader("2️⃣ Aeroporti Mappati e Selezione Volo di Prova")
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Città di Partenza", state.origin_city)
-    col2.metric("Destinazione", state.destination)
-    col3.metric("Scali Massimi", f"{state.max_stops} scali" if state.max_stops is not None else "Non specificato")
-
-    st.success(f"📍 **Aeroporti individuati nel raggio utile:** {', '.join(state.airports)}")
-    
-    st.markdown("### Seleziona una tipologia di volo per testare i collegamenti:")
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("✈️ Simula Volo Diurno (Arrivo 15:30)", use_container_width=True):
-            flight_test = {"details": {"airline": "Ryanair", "airport": state.airports[0]}, "arrival_time": "15:30"}
-            state.add_flight_and_check_transfer(flight_test["details"], flight_test["arrival_time"])
-            st.rerun()
-    with c2:
-        if st.button("🌙 Simula Volo Notturno (Arrivo 23:45)", use_container_width=True):
-            flight_test = {"details": {"airline": "ITA Airways", "airport": state.airports[0]}, "arrival_time": "23:45"}
-            state.add_flight_and_check_transfer(flight_test["details"], flight_test["arrival_time"])
-            st.rerun()
-
-# --- STEP 3 ---
-elif state.step == 3:
-    st.subheader("3️⃣ Verifica Logistica di Terra e Transfer")
-    st.markdown(f"> **Esito Controllo Transfer:**\n> {state.transfer_info}")
-    
-    st.markdown("### Scegli il tuo stile per l'itinerario personalizzato:")
-    travel_style = st.selectbox("Stile di viaggio:", ["Cultura", "Avventura", "Relax", "Enogastronomia"])
-    
-    if st.button("✨ Elabora Matrice Voli e Genera Itinerario", use_container_width=True):
-        state.generate_itinerary(travel_style)
-        st.rerun()
-
-# --- STEP 4 ---
-elif state.step == 4:
-    st.subheader("🎉 Il tuo piano di viaggio è pronto!")
-    
-    st.success(state.flight_recommendation)
-    
-    tab1, tab2 = st.tabs(["🧭 Itinerario Giornaliero", "🔗 Link di Checkout & Prenotazione"])
-    
-    with tab1:
-        st.markdown(f"### Itinerario in stile: *{state.travel_style}*")
-        st.info(state.itinerary)
+        st.subheader("1️⃣ Raccolta Preferenze con IA")
         
-    with tab2:
-        st.markdown("### Link diretti preimpostati")
-        st.markdown("Clicca sui pulsanti sottostanti per aprire i portali con i parametri già impostati:")
-        
-        col_a, col_b = st.columns(2)
-        with col_a:
-            st.link_button("🌐 Cerca Voli su Google Flights", state.checkout_links['google_flights'], use_container_width=True)
-        with col_b:
-            st.link_button("🚆 Verifica Transfer su Rome2Rio", state.checkout_links['transfer_info_link'], use_container_width=True)
-            
-    st.divider()
-    if st.button("🔄 Pianifica un nuovo viaggio", use_container_width=True):
-        st.session_state.agent_state = TravelAgentState()
-        st.rerun()
-
-        
+        # Se la chiave è configurata, offriamo il prompt libero in linguaggio naturale
+        if client:
+            st.info("✨ **Modalità Smart AI attiva:** scrivi liberamente cosa desideri fare.")
+            with st.form("ai_form"):
+                user_prompt = st.text_area("Raccontami il tuo viaggio ideale:", placeholder="Es. Vorrei andare a Tokyo a novembre partendo da Milano con un budget di 1500 euro.")
+                ai_submitted = st.form_submit_button("🤖 Elabora con Gemini", use_container_width=True)
+                
+                if ai_submitted and user_prompt:
+                    with st.spinner("Gemini sta analizzando la richiesta..."):
+                        try:
+                            prompt_text = f"""
+                            Analizza questa richiesta di viaggio ed estrai i dati in formato JSON puro (senza blocchi di codice markdown, solo le chiavi):
+                            - "destination": stringa o null
+                            - "dates": stringa o null
+                            - "origin_city": stringa o null
+                            - "budget_max": stringa o null
+                            
+                            Richiesta: "{user_prompt}"
+                            """
+                            response = client.models.generate_content(
+                                model='gemini-2.5-flash',
+                                contents=prompt_text
+                            )
+                            # Pulizia della risposta per estrarre il JSON
+                            clean_text = response.text.replace("```json", "").replace("
