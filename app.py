@@ -167,13 +167,6 @@ if state.step == 1:
                 if ai_submitted and user_prompt:
                     with st.spinner("Gemini sta analizzando la richiesta..."):
                         try:
-                            prompt_text = f"""
-                            Analizza questa richiesta di viaggio ed estrai i dati in formato JSON puro (senza markdown):
-                            - "destination": stringa o null
-                            - "dates": stringa o null
-                            - "origin_city": stringa o null
-                            - "budget_max": stringa o null
-                            Richiesta: "{user_prompt}"
-                            """
+                            prompt_text = f'Analizza questa richiesta di viaggio ed estrai i dati in formato JSON puro (senza markdown) con chiavi: "destination", "dates", "origin_city", "budget_max". Richiesta: "{user_prompt}"'
                             response = model.generate_content(prompt_text)
                             clean_text = response.text.replace("```json", "").replace("
