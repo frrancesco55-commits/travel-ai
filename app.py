@@ -6,23 +6,16 @@ import google.generativeai as genai
 # --- 0. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Travel AI Assistant Pro", page_icon="✈️", layout="wide")
 
-# --- INIZIALIZZAZIONE CLIENT IA (Gemini & Supporto OpenAI/ChatGPT) ---
+# --- INIZIALIZZAZIONE CLIENT IA (Gemini) ---
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key and "GEMINI_API_KEY" in st.secrets:
     api_key = st.secrets["GEMINI_API_KEY"]
 
 if api_key:
     genai.configure(api_key=api_key)
-    # Usiamo il modello Gemini più recente ed efficiente
     model = genai.GenerativeModel('gemini-1.5-pro')
 else:
     model = None
-
-# Configurazione opzionale per ChatGPT (OpenAI) se la chiave è presente nei secrets o nelle env
-openai_api_key = os.environ.get("OPENAI_API_KEY")
-if not openai_api_key and "OPENAI_API_KEY" in st.secrets:
-    openai_api_key = st.secrets["OPENAI_API_KEY"]
-
 
 # --- 1. CLASSE DI STATO E CONTROLLER ---
 class TravelAgentState:
@@ -76,7 +69,6 @@ class TravelAgentState:
         except:
             hour = 12
         
-        # Logistica di terra integrata (Rome2Rio, Treni, Bus e Servizi locali)
         transfers = {
             "Malpensa (MXP)": "Malpensa Express (Treno fino a Milano Centrale) o Bus Navetta h24.",
             "Linate (LIN)": "Metro M4 (Linea Blu diretta al centro) o Taxi.",
@@ -88,10 +80,10 @@ class TravelAgentState:
             "Napoli Capodichino (NAP)": "Alibus per la Stazione Centrale di Piazza Garibaldi o Porto."
         }
         airport_used = flight_details.get("airport", self.airports[0] if self.airports else "Aeroporto")
-        base_transfer = transfers.get(airport_used, "Servizio bus, treno regionale o taxi locale (verificabile su Rome2Rio).")
+        base_transfer = transfers.get(airport_used, "Servizio bus, treno regionale o taxi locale.")
         
         if hour >= 23 or hour < 5:
-            self.transfer_info = f"⚠️ Atterraggio notturno ({arrival_time}). Consigliato: Taxi ufficiale o navetta aeroportuale h24. Collegamenti di base: {base_transfer}"
+            self.transfer_info = f"⚠️ Atterraggio notturno ({arrival_time}). Consigliato: Taxi ufficiale o navetta aeroportuale h24. Collegamenti: {base_transfer}"
         else:
             self.transfer_info = f"✅ Collegamenti regolari attivi ({arrival_time}): {base_transfer}"
         
@@ -110,8 +102,9 @@ class TravelAgentState:
                 it_response = model.generate_content(itinerary_prompt)
                 self.itinerary = it_response.text
 
-                # 2. Analisi Avanzata e Raccomandazione Voli (Incrocio ITA, Ryanair, EasyJet, ecc.)
-                airlines_str = ", ".join(self.preferred_airlines) se self.preferred_airlines else "Compagnie principali (ITA, Ryanair, EasyJet)"
+                # 2. Correzione della sintassi per le compagnie aeree preferite
+                airlines_str = ", ".join(self.preferred_airlines) if self.preferred_airlines else "Compagnie principali (ITA, Ryanair, EasyJet)"
+                
                 flight_prompt = f"""
                 Agisci come un esperto di tariffe aeree e travel data analyst. Simula l'incrocio tra i vettori ({airlines_str}), 
                 le date ({self.dates}), gli orari e i prezzi stimati per un volo da '{self.origin_city}' a '{self.destination}' con budget massimo '{self.budget_max}'.
@@ -142,9 +135,7 @@ class TravelAgentState:
     def generate_checkout_links(self):
         dest_query = (self.destination or "").replace(" ", "+")
         origin_query = (self.origin_city or "").replace(" ", "+")
-        dates_query = (self.dates or "").replace(" ", "+")
         
-        # Link diretti ai principali aggregatori e portali di prenotazione reali richiesti
         self.checkout_links = {
             "google_flights": f"https://www.google.com/travel/flights?q=Flights+from+{origin_query}+to+{dest_query}",
             "skyscanner": f"https://www.skyscanner.it/trasporti/voli/{origin_query.lower()}/{dest_query.lower()}/",
@@ -167,7 +158,7 @@ with st.sidebar:
             st.write(f"🛫 **Partenza:** {st.session_state.agent_state.origin_city}")
 
 st.title("✈️ Travel AI Assistant Pro")
-st.markdown("##### Il tuo assistente di viaggio intelligente integrato con IA (Gemini), Google Flights, Skyscanner, Booking, compagnie aeree e Rome2Rio.")
+st.markdown("##### Il tuo assistente di viaggio intelligente integrato con IA, Google Flights, Skyscanner, Booking e Rome2Rio.")
 st.divider()
 
 if "agent_state" not in st.session_state:
@@ -175,36 +166,36 @@ if "agent_state" not in st.session_state:
 
 state = st.session_state.agent_state
 
-# --- STEP 1: RACCOLTA PREFERENZE ---
+# --- STEP 1 ---
 if state.step == 1:
     col1, col2 = st.columns([2, 1])
     with col1:
         st.subheader("1️⃣ Preferenze di Viaggio")
         with st.form("step1_form"):
-            destination = st.text_input("Destinazione", placeholder="Es. Tokyo, Parigi, New York, Londra")
+            destination = st.text_input("Destinazione", placeholder="Es. Tokyo, Parigi, New York")
             dates = st.text_input("Periodo / Date", placeholder="Es. 10-17 Ottobre, Settembre")
-            origin_city = st.text_input("Città di Partenza", placeholder="Es. Milano, Roma, Napoli, Torino")
+            origin_city = st.text_input("Città di Partenza", placeholder="Es. Milano, Roma, Napoli")
             
             with st.expander("⚙️ Filtri Avanzati (Budget, Compagnie e Scali)"):
                 budget_max = st.text_input("Budget massimo stimato", placeholder="Es. 1200€")
-                preferred_airlines = st.text_input("Compagnie preferite (es. ITA, Ryanair, EasyJet)", placeholder="Es. ITA Airways, Ryanair, Emirates")
+                preferred_airlines = st.text_input("Compagnie preferite", placeholder="Es. ITA Airways, Ryanair, Emirates")
                 max_stops = st.selectbox("Numero massimo di scali", [0, 1, 2], index=1)
 
-            submitted = st.form_submit_button("🚀 Avvia Mappatura e Intelligenza di Viaggio", use_container_width=True)
+            submitted = st.form_submit_button("🚀 Avvia Mappatura e Intelligenza", use_container_width=True)
             if submitted and destination and dates and origin_city:
                 airlines_list = [a.strip() for a in preferred_airlines.split(",")] if preferred_airlines else []
                 state.set_user_input(destination, dates, origin_city, budget_max, airlines_list, max_stops)
                 st.rerun()
     with col2:
-        st.markdown("### 🔗 Servizi Integrati")
+        st.markdown("### Servizi Integrati")
         st.info(
-            "• **Intelligenza Artificiale:** Google Gemini (Modello avanzato)\n"
-            "• **Voli & Aggregatori:** Google Flights, Skyscanner, ITA, Ryanair, EasyJet\n"
-            "• **Logistica & Transfer:** Rome2Rio & Mappe regionali\n"
-            "• **Hotel & Alloggi:** Booking.com"
+            "• **Intelligenza Artificiale:** Google Gemini\n"
+            "• **Voli:** Google Flights, Skyscanner, compagnie dirette\n"
+            "• **Logistica:** Rome2Rio\n"
+            "• **Hotel:** Booking.com"
         )
 
-# --- STEP 2: AEROPORTI E SIMULAZIONE TRATTA ---
+# --- STEP 2 ---
 elif state.step == 2:
     st.subheader("2️⃣ Aeroporti Mappati e Selezione Volo")
     
@@ -219,91 +210,4 @@ elif state.step == 2:
     c1, c2 = st.columns(2)
     with c1:
         if st.button("✈️ Simula Volo Diurno (Arrivo 15:30)", use_container_width=True):
-            flight_test = {"details": {"airline": state.preferred_airlines[0] if state.preferred_airlines else "Ryanair", "airport": state.airports[0]}, "arrival_time": "15:30"}
-            state.add_flight_and_check_transfer(flight_test["details"], flight_test["arrival_time"])
-            st.rerun()
-    with c2:
-        if st.button("🌙 Simula Volo Notturno (Arrivo 23:45)", use_container_width=True):
-            flight_test = {"details": {"airline": state.preferred_airlines[0] if state.preferred_airlines else "ITA Airways", "airport": state.airports[0]}, "arrival_time": "23:45"}
-            state.add_flight_and_check_transfer(flight_test["details"], flight_test["arrival_time"])
-            st.rerun()
-
-# --- STEP 3: LOGISTICA E STILE ---
-elif state.step == 3:
-    st.subheader("3️⃣ Verifica Logistica di Terra e Transfer")
-    st.markdown(f"> **Esito Controllo Transfer:**\n> {state.transfer_info}")
-    
-    st.markdown("### Scegli il tuo stile di viaggio per l'itinerario IA:")
-    travel_style = st.selectbox("Stile:", ["Cultura", "Avventura", "Relax", "Enogastronomia", "Lusso a basso costo"])
-    
-    if st.button("✨ Elabora Analisi Completa e Genera Piano con IA", use_container_width=True):
-        with st.spinner("L'intelligenza artificiale sta elaborando le opzioni di volo, l'itinerario e i collegamenti..."):
-            state.generate_real_ai_content(travel_style)
-            st.rerun()
-
-# --- STEP 4: RISULTATI FINALI E LINK DIRETTI ---
-elif state.step == 4:
-    st.subheader("🎉 Il tuo piano di viaggio completo è pronto!")
-    
-    # Raccomandazione voli generata dall'IA
-    st.success(state.flight_recommendation)
-    
-    # Tab di navigazione pulite
-    tab1, tab2, tab3 = st.tabs(["🧭 Itinerario Giornaliero", "🔗 Prenotazioni & Link Diretti", "📂 Altri Strumenti & Chat IA"])
-    
-    with tab1:
-        st.markdown(f"### Itinerario in stile: *{state.travel_style}*")
-        st.markdown(state.itinerary)
-        
-    with tab2:
-        st.markdown("### Portali di Volo e Comparatori Ufficiali")
-        st.markdown("Accedi direttamente ai principali aggregatori con i dati della tua ricerca preimpostati:")
-        
-        col_a, col_b = st.columns(2)
-        with col_a:
-            st.link_button("🌐 Cerca su Google Flights", state.checkout_links['google_flights'], use_container_width=True)
-            st.link_button("✈️ Cerca su Skyscanner", state.checkout_links['skyscanner'], use_container_width=True)
-        with col_b:
-            st.link_button("🏨 Cerca Hotel su Booking.com", state.checkout_links['booking_hotel'], use_container_width=True)
-            st.link_button("🚆 Pianifica Transfer su Rome2Rio", state.checkout_links['rome2rio'], use_container_width=True)
-
-        st.markdown("### Siti Diretti delle Compagnie Aeree")
-        c_a1, c_a2, c_a3 = st.columns(3)
-        with c_a1:
-            st.link_button("🇮🇹 ITA Airways", state.checkout_links['ita_airways'], use_container_width=True)
-        with c_a2:
-            st.link_button("✈️ Ryanair", state.checkout_links['ryanair'], use_container_width=True)
-        with c_a3:
-            st.link_button("✈️ EasyJet", state.checkout_links['easyjet'], use_container_width=True)
-            
-    with tab3:
-        sub_tab1, sub_tab2, sub_tab3 = st.tabs(["🧳 Valigia & Meteo", "💰 Calcolatore Budget", "💬 Consulente Chat IA"])
-        
-        with sub_tab1:
-            st.markdown("### 🌤️ Previsioni e Lista Valigia")
-            st.markdown(state.packing_list)
-            
-        with sub_tab2:
-            st.markdown("### 💶 Calcolatore Rapido Spese")
-            cb1, cb2 = st.columns(2)
-            with cb1:
-                st.number_input("Costo Voli (€)", value=150.0, key="b_volo")
-                st.number_input("Costo Hotel (€)", value=350.0, key="b_hotel")
-            with cb2:
-                st.number_input("Cibo e Extra (€)", value=250.0, key="b_extra")
-            st.info(f"💡 Budget massimo dichiarato: {state.budget_max if state.budget_max else 'Non specificato'}")
-            
-        with sub_tab3:
-            st.markdown("### 💬 Chiedi al Consulente IA")
-            user_chat = st.text_input(f"Fai una domanda specifica su {state.destination} (es. documenti, valuta, zone da evitare):", key="chat_input")
-            if user_chat and model:
-                try:
-                    chat_resp = model.generate_content(f"Rispondi in modo chiaro e dettagliato a questa domanda sul viaggio a {state.destination}: {user_chat}")
-                    st.write(chat_resp.text)
-                except Exception as e:
-                    st.error(f"Errore nella generazione della risposta: {e}")
-
-    st.divider()
-    if st.button("🔄 Pianifica un nuovo viaggio", use_container_width=True):
-        st.session_state.agent_state = TravelAgentState()
-        st.rerun()
+            flight_test =
